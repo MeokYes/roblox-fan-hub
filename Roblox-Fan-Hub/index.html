@@ -1,0 +1,285 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Roblox Fan Hub</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 24px 14px;
+      min-height: 100vh;
+      font-family: Arial, sans-serif;
+      color: white;
+      background: linear-gradient(135deg, #101116, #292d3b);
+    }
+    .card {
+      max-width: 600px;
+      margin: 20px auto;
+      padding: 28px;
+      background: #20232c;
+      border: 1px solid #414654;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px #0005;
+    }
+    h1 { color: #ff4747; text-align: center; }
+    .sub { color: #c4c8d2; text-align: center; line-height: 1.5; }
+    label { display: block; margin: 18px 0 8px; font-weight: bold; }
+    input, select {
+      width: 100%; padding: 13px; border-radius: 8px;
+      border: 1px solid #505665; background: #15171d;
+      color: white; font-size: 16px;
+    }
+    button {
+      width: 100%; padding: 14px; margin-top: 16px;
+      border: 0; border-radius: 8px; background: #ff4747;
+      color: white; font-size: 16px; font-weight: bold; cursor: pointer;
+    }
+    button:hover { background: #df3030; }
+    button.secondary { background: #414654; }
+    .link {
+      display: block; text-align: center; margin-top: 24px;
+      color: #c3ccff; text-decoration: underline; cursor: pointer;
+    }
+    .hidden { display: none !important; }
+    .message { text-align: center; overflow-wrap: anywhere; }
+    .result {
+      background: #15171d; border-left: 4px solid #ff4747;
+      padding: 14px; margin-top: 14px; border-radius: 8px;
+      overflow-wrap: anywhere;
+    }
+    .result p { margin: 8px 0; }
+    .count { text-align: center; color: #8affb0; }
+    .small { color: #b9bdc8; font-size: 12px; line-height: 1.5; }
+  </style>
+</head>
+<body>
+
+  <main class="card" id="surveyPage">
+    <h1>🎮 Roblox Fan Hub</h1>
+    <p class="sub">Tell us about your favorite Roblox games!</p>
+
+    <form id="surveyForm">
+      <label for="love">1. Do you love Roblox?</label>
+      <select id="love" required>
+        <option value="">Choose your answer</option>
+        <option>Yes! ❤️</option>
+        <option>It's okay</option>
+        <option>No</option>
+      </select>
+
+      <label for="username">2. What's your Roblox username?</label>
+      <input id="username" maxlength="50"
+        placeholder="Roblox username or display name" required>
+
+      <label for="favorite">3. What's your favorite Roblox game?</label>
+      <input id="favorite" maxlength="100"
+        placeholder="Example: Brookhaven" required>
+
+      <button id="submitButton" type="submit">Submit My Answers 🚀</button>
+      <p class="small">
+        This fan survey does not need your Roblox password.
+        After submitting, you'll be sent to the official Roblox website.
+      </p>
+      <p id="surveyMessage" class="message" role="status"></p>
+    </form>
+
+    <span class="link" id="openLogin">🔐 Developer Login</span>
+  </main>
+
+  <section class="card hidden" id="loginPage">
+    <h1>🔐 Developer Login</h1>
+    <p class="sub">Authorized dashboard access only.</p>
+
+    <form id="loginForm">
+      <label for="password">Developer password</label>
+      <input id="password" type="password" autocomplete="current-password"
+        placeholder="Enter developer password" required>
+      <button type="submit">Login</button>
+    </form>
+
+    <p id="loginMessage" class="message" role="status"></p>
+    <button class="secondary" id="backButton" type="button">Back to Survey</button>
+  </section>
+
+  <section class="card hidden" id="dashboardPage">
+    <h1>🛠️ Developer Dashboard</h1>
+    <p class="sub">Survey responses from all visitors</p>
+    <p class="count" id="responseCount">Responses: 0</p>
+    <p id="dashboardMessage" class="message" role="status"></p>
+    <div id="results"></div>
+    <button id="refreshButton" type="button">Refresh Responses</button>
+    <button id="exportButton" type="button">Download CSV</button>
+    <button class="secondary" id="logoutButton" type="button">Log Out</button>
+  </section>
+
+<script>
+  const $ = id => document.getElementById(id);
+  const pages = [$("surveyPage"), $("loginPage"), $("dashboardPage")];
+  let sessionToken = "";
+  let responses = [];
+
+  function showPage(page) {
+    pages.forEach(p => p.classList.add("hidden"));
+    page.classList.remove("hidden");
+    window.scrollTo(0, 0);
+  }
+
+  async function api(action, data = {}, token = "") {
+    const response = await fetch("/.netlify/functions/api", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { "Authorization": "Bearer " + token } : {})
+      },
+      body: JSON.stringify({ action, ...data })
+    });
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Request failed.");
+    return result;
+  }
+
+  $("surveyForm").addEventListener("submit", async event => {
+    event.preventDefault();
+
+    const button = $("submitButton");
+    button.disabled = true;
+    $("surveyMessage").textContent = "Submitting your answers…";
+
+    try {
+      await api("submit", {
+        love: $("love").value,
+        username: $("username").value.trim(),
+        favorite: $("favorite").value.trim()
+      });
+
+      // Redirect after the server confirms the response was saved.
+      window.location.assign("https://www.roblox.com/login");
+    } catch (error) {
+      $("surveyMessage").textContent =
+        error.message + " Please try again.";
+      button.disabled = false;
+    }
+  });
+
+  $("openLogin").addEventListener("click", () => {
+    $("password").value = "";
+    $("loginMessage").textContent = "";
+    showPage($("loginPage"));
+  });
+
+  $("backButton").addEventListener("click", () => showPage($("surveyPage")));
+
+  $("loginForm").addEventListener("submit", async event => {
+    event.preventDefault();
+    $("loginMessage").textContent = "Checking password…";
+
+    try {
+      const result = await api("login", { password: $("password").value });
+      sessionToken = result.token;
+      $("password").value = "";
+      showPage($("dashboardPage"));
+      await loadResults();
+    } catch (error) {
+      $("loginMessage").textContent = error.message;
+      // Wrong password redirects to the official Roblox login page.
+      if (error.message === "Incorrect password.") {
+        window.location.assign("https://www.roblox.com/login");
+      }
+    }
+  });
+
+  async function loadResults() {
+    $("dashboardMessage").textContent = "Loading responses…";
+    $("results").replaceChildren();
+
+    try {
+      const result = await api("results", {}, sessionToken);
+      responses = result.responses;
+      $("responseCount").textContent = "Total responses: " + responses.length;
+      $("dashboardMessage").textContent = "";
+
+      if (!responses.length) {
+        $("dashboardMessage").textContent = "No responses yet.";
+        return;
+      }
+
+      responses.forEach((item, index) => {
+        const article = document.createElement("article");
+        article.className = "result";
+
+        const heading = document.createElement("h3");
+        heading.textContent = "Response #" + (index + 1);
+        article.appendChild(heading);
+
+        [
+          ["Loves Roblox", item.love],
+          ["Username", item.username],
+          ["Favorite game", item.favorite],
+          ["Submitted", new Date(item.created_at).toLocaleString()]
+        ].forEach(([name, value]) => {
+          const p = document.createElement("p");
+          const strong = document.createElement("strong");
+          strong.textContent = name + ": ";
+          p.append(strong, document.createTextNode(value || ""));
+          article.appendChild(p);
+        });
+
+        $("results").appendChild(article);
+      });
+    } catch (error) {
+      $("dashboardMessage").textContent =
+        error.message + " Please log in again.";
+      sessionToken = "";
+      showPage($("loginPage"));
+    }
+  }
+
+  $("refreshButton").addEventListener("click", loadResults);
+
+  $("exportButton").addEventListener("click", () => {
+    if (!responses.length) {
+      alert("There are no responses to export.");
+      return;
+    }
+
+    const fields = [
+      ["love", "Do you love Roblox?"],
+      ["username", "Username"],
+      ["favorite", "Favorite game"],
+      ["created_at", "Submitted"]
+    ];
+
+    const cell = value => {
+      let s = String(value ?? "");
+      if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+      return '"' + s.replace(/"/g, '""') + '"';
+    };
+
+    const csv = [
+      fields.map(f => cell(f[1])).join(","),
+      ...responses.map(r => fields.map(f => cell(r[f[0]])).join(","))
+    ].join("\r\n");
+
+    const blob = new Blob(["\uFEFF" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "roblox-fan-hub-responses.csv";
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+
+  $("logoutButton").addEventListener("click", () => {
+    sessionToken = "";
+    responses = [];
+    $("password").value = "";
+    $("results").replaceChildren();
+    showPage($("surveyPage"));
+  });
+</script>
+</body>
+</html>
